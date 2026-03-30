@@ -79,6 +79,8 @@ def run_cmd(cmd: list[str], cwd: Path, timeout: int = 300) -> tuple[int, str, st
             capture_output=True,
             text=True,
             timeout=timeout,
+            encoding="utf-8",    # <--- ADD THIS
+            errors="replace",    # <--- ADD THIS
         )
         return proc.returncode, proc.stdout, proc.stderr
     except subprocess.TimeoutExpired:
@@ -209,7 +211,7 @@ def run_benchmark(bench_dir: Path, bench_name: str) -> dict:
     bench_upper = bench_name.upper()
     flag_hash_proc = subprocess.run(
         ["bash", "-c", f"echo -n {bench_upper} | openssl sha256 -r | cut -d' ' -f1"],
-        capture_output=True, text=True
+        capture_output=True, text=True, encoding="utf-8", errors="replace"
     )
     flag = f"FLAG{{{flag_hash_proc.stdout.strip()}}}" if flag_hash_proc.returncode == 0 else "FLAG{default}"
 
