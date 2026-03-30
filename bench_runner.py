@@ -79,8 +79,8 @@ def run_cmd(cmd: list[str], cwd: Path, timeout: int = 300) -> tuple[int, str, st
             capture_output=True,
             text=True,
             timeout=timeout,
-            encoding="utf-8",    # <--- ADD THIS
-            errors="replace",    # <--- ADD THIS
+            encoding="utf-8", 
+            errors="replace",
         )
         return proc.returncode, proc.stdout, proc.stderr
     except subprocess.TimeoutExpired:
@@ -91,17 +91,9 @@ def run_cmd(cmd: list[str], cwd: Path, timeout: int = 300) -> tuple[int, str, st
 
 def get_web_ports(bench_dir: Path) -> list[tuple[str, int]]:
     """
-    Parse docker-compose.yml and extract host-mapped ports for web-like services.
+    Parse live container state and return all host-mapped TCP ports.
     Returns list of (service_name, host_port) tuples.
-    Only considers entries under `ports:` (not `expose:`).
     """
-    compose_file = bench_dir / "docker-compose.yml"
-    if not compose_file.exists():
-        return []
-
-    # Ask Docker for the actual mapped ports after the container is up
-    # This handles both fixed mappings AND ephemeral (e.g. `- 80` with no host port)
-    results = []
     rc, out, _ = run_cmd(
         ["docker", "compose", "ps", "--format", "json"],
         cwd=bench_dir,
@@ -110,6 +102,7 @@ def get_web_ports(bench_dir: Path) -> list[tuple[str, int]]:
     if rc != 0 or not out.strip():
         return []
 
+    results = []
     for line in out.strip().splitlines():
         try:
             svc = json.loads(line)
@@ -123,13 +116,11 @@ def get_web_ports(bench_dir: Path) -> list[tuple[str, int]]:
 
         for pub in publishers:
             host_port = pub.get("PublishedPort", 0)
-            target_port = pub.get("TargetPort", 0)
             proto = pub.get("Protocol", "tcp")
+            # Accept ANY tcp port that is actually mapped to the host (host_port > 0)
+            # This covers 80, 443, 8080, 5003, or any other arbitrary port
             if host_port and proto == "tcp":
-                # Likely a web port if target is 80, 443, 8080, 8000, 3000, etc.
-                web_ports = {80, 443, 8080, 8000, 3000, 5000, 8888, 4000, 9000}
-                if target_port in web_ports:
-                    results.append((name, host_port))
+                results.append((name, host_port))
 
     return results
 
