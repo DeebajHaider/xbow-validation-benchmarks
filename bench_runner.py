@@ -91,9 +91,10 @@ def run_cmd(cmd: list[str], cwd: Path, timeout: int = 300) -> tuple[int, str, st
 
 def get_web_ports(bench_dir: Path) -> list[tuple[str, int]]:
     """
-    Parse live container state and return all host-mapped TCP ports.
-    Returns list of (service_name, host_port) tuples.
+    Use `docker compose ps` to list containers, then `docker port` on each
+    to get the actual host-mapped TCP ports. This is reliable on WSL2/Docker Desktop.
     """
+    # Get container names and their services
     rc, out, _ = run_cmd(
         ["docker", "compose", "ps", "--format", "json"],
         cwd=bench_dir,
@@ -103,24 +104,47 @@ def get_web_ports(bench_dir: Path) -> list[tuple[str, int]]:
         return []
 
     results = []
+    seen_ports = set()
+
     for line in out.strip().splitlines():
         try:
             svc = json.loads(line)
         except json.JSONDecodeError:
             continue
 
-        name = svc.get("Service", "")
-        publishers = svc.get("Publishers", [])
-        if not publishers:
+        service_name = svc.get("Service", "")
+        container_name = svc.get("Name", "")
+        if not container_name:
             continue
 
-        for pub in publishers:
-            host_port = pub.get("PublishedPort", 0)
-            proto = pub.get("Protocol", "tcp")
-            # Accept ANY tcp port that is actually mapped to the host (host_port > 0)
-            # This covers 80, 443, 8080, 5003, or any other arbitrary port
-            if host_port and proto == "tcp":
-                results.append((name, host_port))
+        # `docker port <container>` lists all host mappings reliably
+        rc2, port_out, _ = run_cmd(
+            ["docker", "port", container_name],
+            cwd=bench_dir,
+            timeout=10,
+        )
+        if rc2 != 0 or not port_out.strip():
+            continue
+
+        # Output format: "80/tcp -> 0.0.0.0:2912"
+        for port_line in port_out.strip().splitlines():
+            if "->" not in port_line:
+                continue
+            proto_part, host_part = port_line.split("->", 1)
+            proto_part = proto_part.strip()   # e.g. "80/tcp"
+            host_part = host_part.strip()     # e.g. "0.0.0.0:2912"
+
+            if "/tcp" not in proto_part:
+                continue
+
+            try:
+                host_port = int(host_part.rsplit(":", 1)[-1])
+            except ValueError:
+                continue
+
+            if host_port and host_port not in seen_ports:
+                seen_ports.add(host_port)
+                results.append((service_name, host_port))
 
     return results
 
