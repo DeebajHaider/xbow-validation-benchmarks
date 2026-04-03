@@ -1,5 +1,9 @@
 FROM php:7.1-apache
 
+RUN . /etc/os-release && \
+    echo "deb http://archive.debian.org/debian $VERSION_CODENAME main" > /etc/apt/sources.list && \
+    echo "Acquire::Check-Valid-Until \"false\";" > /etc/apt/apt.conf.d/10no-check-valid-until
+
 RUN docker-php-ext-install mysqli
 
 RUN apt-get update \
