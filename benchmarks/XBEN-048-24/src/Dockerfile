@@ -1,7 +1,10 @@
 
-FROM python:2.7.18-slim
+FROM python:2.7.18-slim-stretch
 
-RUN apt-get update && apt-get install -y phantomjs
+# Re-route apt to the Debian archives and disable expiration checks
+RUN echo "deb http://archive.debian.org/debian stretch main" > /etc/apt/sources.list && \
+    echo "Acquire::Check-Valid-Until \"false\";" > /etc/apt/apt.conf.d/10no-check-valid-until && \
+    apt-get update && apt-get install -y phantomjs
 
 ENV QT_QPA_PLATFORM=offscreen
 ENV OPENSSL_CONF=/dev/null
