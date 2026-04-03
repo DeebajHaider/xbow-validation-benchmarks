@@ -8,7 +8,8 @@ RUN apt-get update && apt-get install -y \
     git \
     && docker-php-ext-install pdo_mysql
 
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+# Pin Composer to a stable version for older PHP environments
+COPY --from=composer:2.2 /usr/bin/composer /usr/bin/composer
 
 COPY . /var/www/html
 
@@ -22,7 +23,8 @@ RUN chown -R appuser:appuser /var/www/html
 
 USER appuser
 
-RUN composer install 
+# Force the installation by ignoring strict platform/extension requirements
+RUN composer install --ignore-platform-reqs --no-interaction
 
 USER root
 RUN chown -R www-data:www-data /var/www/html/vendor
