@@ -22,7 +22,7 @@ services:
     build:
       context: ./wordpress
     ports:
-      - 80:80
+      - 8080:80
     restart: on-failure
     depends_on:
       db:
